@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111111">
+<link rel="manifest" href="./manifest.webmanifest"><title>إنشاء الطلب</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f5f7;font-family:system-ui,-apple-system,"Segoe UI",Arial;color:#171717}
+.w{max-width:560px;margin:auto;padding:16px}.card{background:#fff;border:1px solid #e4e4e4;border-radius:22px;padding:18px;margin:12px 0}
+.brand{text-align:center;font-weight:950;font-size:24px}.raw{white-space:pre-wrap;background:#f7f7f8;padding:12px;border-radius:12px;border:1px dashed #ddd;max-height:230px;overflow:auto}
+.big{font-size:74px;line-height:1;font-weight:1000;text-align:center;margin:18px 0}.center{text-align:center}.muted{color:#777}
+.ok{background:#edf9f0;color:#14652e;padding:12px;border-radius:12px}.bad{background:#fff0f0;color:#a11;padding:12px;border-radius:12px}
+button{width:100%;border:0;border-radius:13px;padding:14px;background:#111;color:#fff;font-weight:900;font-size:18px;margin-top:12px}.sec{background:#eee;color:#111}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pill{background:#f1f1f1;border-radius:10px;padding:8px}
+</style></head>
+<body><div class="w"><div class="brand">الخليجي الأول</div><div id="app"></div></div>
+<script>
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+const api=localStorage.getItem('gasApi')||'', emp=localStorage.getItem('empToken')||'';
+const q=new URLSearchParams(location.search);
+const shared=[q.get('text'),q.get('title'),q.get('url')].filter(Boolean).join('\n').trim();
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function jsonp(url){return new Promise((resolve,reject)=>{const cb='cb_'+Date.now()+'_'+Math.random().toString(16).slice(2);window[cb]=d=>{delete window[cb];s.remove();resolve(d)};const s=document.createElement('script');s.onerror=()=>{delete window[cb];s.remove();reject(new Error('تعذر الاتصال بالنظام'))};s.src=url+(url.includes('?')?'&':'?')+'callback='+cb;document.body.appendChild(s)})}
+function start(){
+  if(!api||!emp){app.innerHTML='<div class="card bad">هذا الهاتف غير مفعّل. افتح رابط تفعيل الموظف مرة واحدة أولاً.</div>';return}
+  if(!shared){app.innerHTML='<div class="card bad">لم تصل رسالة نصية من واتساب. شارك رسالة العنوان نفسها.</div>';return}
+  app.innerHTML=`<div class="card"><h3>رسالة العنوان</h3><div class="raw">${esc(shared)}</div><button onclick="createOrder()">إنشاء الطلب الآن</button><button class="sec" onclick="history.back()">إلغاء</button></div>`;
+}
+async function createOrder(){
+  app.innerHTML='<div class="card center"><h3>جاري إنشاء الطلب...</h3><p class="muted">ثواني فقط</p></div>';
+  try{
+    const r=await jsonp(api+'?api=shareCreate&emp='+encodeURIComponent(emp)+'&text='+encodeURIComponent(shared));
+    if(!r.ok) throw new Error(r.error);
+    const p=r.parsed||{};
+    app.innerHTML=`<div class="card center"><div class="ok">${r.duplicate?'✅ الرسالة كانت مسجلة قبل قليل؛ لم ننشئ طلباً مكرراً.':'✅ تم إنشاء الطلب بنجاح'}</div>
+      <p class="muted">اكتب هذا الرقم على القطع فوراً</p><div class="big">#${esc(r.orderNo)}</div>
+      <div class="grid">${p.customerName?`<div class="pill"><b>الاسم</b><br>${esc(p.customerName)}</div>`:''}${p.phone?`<div class="pill"><b>الهاتف</b><br>${esc(p.phone)}</div>`:''}${p.area?`<div class="pill"><b>المنطقة</b><br>${esc(p.area)}</div>`:''}${p.block?`<div class="pill"><b>القطعة</b><br>${esc(p.block)}</div>`:''}</div>
+      <p class="muted">الطلب وصل مباشرة إلى كاشير الأونلاين.</p><button onclick="window.close()">تم</button></div>`;
+  }catch(e){app.innerHTML='<div class="card bad">'+esc(e.message)+'</div><button onclick="location.reload()">إعادة المحاولة</button>'}
+}
+start();
+</script></body></html>
