@@ -267,8 +267,26 @@ function createAndSend(){
 async function copyMessage(autoCopy=false){
  if(!lastMessage)return;
  const msg=autoCopy ? 'تم إنشاء رمز الطلب ونسخ البيانات. اكتب الرمز على الملابس، والبيانات جاهزة للصق.' : 'تم نسخ بيانات الطلب';
- try{await navigator.clipboard.writeText(lastMessage);alert(msg)}catch(e){
-   const ta=document.createElement('textarea');ta.value=lastMessage;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert(msg);
+
+ // داخل تطبيق Android نستخدم الحافظة الأصلية مباشرة لضمان النسخ.
+ if(window.Android && typeof Android.copyText==='function'){
+   Android.copyText(lastMessage);
+   alert(msg);
+   return;
+ }
+
+ // احتياط في حال فتح نفس الصفحة خارج التطبيق.
+ try{
+   await navigator.clipboard.writeText(lastMessage);
+   alert(msg);
+ }catch(e){
+   const ta=document.createElement('textarea');
+   ta.value=lastMessage;
+   document.body.appendChild(ta);
+   ta.select();
+   document.execCommand('copy');
+   ta.remove();
+   alert(msg);
  }
 }
 function clearRaw(){$('raw').value='';$('detected').innerHTML=''}
