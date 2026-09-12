@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>الخليجي الأول - موظف الطلبات</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial}
+*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#171717}
+.wrap{max-width:680px;margin:auto;padding:14px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:16px;margin:11px 0;box-shadow:0 2px 10px #0000000b}
+h1{font-size:24px;margin:4px 0}h2{font-size:17px;margin:0 0 10px}.muted{color:#666;font-size:13px;line-height:1.7}
+label{display:block;font-weight:700;margin:10px 0 5px}input,textarea{width:100%;font:inherit;border:1px solid #ccd1d8;border-radius:12px;padding:11px;background:#fff}
+textarea{min-height:145px;resize:vertical}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+button{width:100%;border:0;border-radius:13px;padding:13px;font:inherit;font-weight:800;cursor:pointer;margin-top:9px}
+.primary{background:#111;color:#fff}.green{background:#1aa260;color:#fff}.soft{background:#eef1f4}.warn{background:#fff7e6;color:#7a4b00}
+.code{font-size:34px;font-weight:900;text-align:center;letter-spacing:1px;padding:11px;border:2px dashed #111;border-radius:14px;margin:10px 0}
+.ok{font-weight:800;color:#177245}.hidden{display:none}.pill{display:inline-block;background:#eef1f4;border-radius:999px;padding:5px 9px;margin:3px;font-size:12px}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.wrap{padding:9px}}
+</style>
+</head>
+<body><div class="wrap">
+<div class="card"><h1>الخليجي الأول</h1><div class="muted">برنامج الموظف — عنوان الزبونة حتى لو بعثته بأكثر من رسالة</div></div>
+
+<div class="card">
+<h2>إعداد مرة واحدة</h2>
+<div class="grid">
+<div><label>اسم الموظف</label><input id="employee" placeholder="مثال: زهير"></div>
+<div><label>رمز الموظف</label><input id="prefix" inputmode="numeric" maxlength="2" placeholder="مثال: 1"></div>
+</div>
+
+<button class="soft" onclick="saveSettings()">حفظ الإعدادات</button>
+</div>
+
+<div class="card">
+<h2>1) اجمع رسائل الزبونة</h2>
+<div class="muted">يفهم الصياغة العادية والمختصرة والعربي والإنجليزي. أمثلة: حطين ق1 ش2 م3 66559944 — أو Hateen blk 1 st 2 house 3 66559944. وإذا العنوان والتلفون برسالتين، الصقهما تحت بعض.</div>
+<textarea id="raw" placeholder="مثال:
+الجهراء قطعة 3 شارع 14 منزل 22
+
+ثم الصق تحتها رسالة ثانية:
+99999999"></textarea>
+<button class="primary" onclick="parseRaw()">فهم وترتيب كل الرسائل</button>
+<button class="soft" onclick="clearRaw()">مسح الرسائل</button>
+</div>
+
+<div class="card">
+<h2>2) راجع البيانات</h2>
+<div class="grid">
+<div><label>الاسم</label><input id="name"></div>
+<div><label>الهاتف</label><input id="phone" inputmode="tel"></div>
+<div><label>المنطقة</label><input id="area"></div>
+<div><label>القطعة</label><input id="block"></div>
+<div><label>الشارع</label><input id="street"></div>
+<div><label>الجادة</label><input id="avenue"></div>
+<div><label>المنزل / العمارة</label><input id="house"></div>
+<div><label>ملاحظة</label><input id="note"></div>
+</div>
+<div class="muted" id="detected"></div>
+<button class="green" onclick="createAndSend()">إنشاء رمز الطلب ونسخ البيانات</button>
+</div>
+
+<div class="card hidden" id="done">
+<div class="ok">تم إنشاء رمز الطلب</div>
+<div class="code" id="orderDisplay">#1-101</div>
+<div class="muted">هذا هو <b>رمز الطلب</b> الذي تكتبه على الملابس. رقم الطلب الحقيقي سيأتي لاحقاً من فاتورة الأمين.</div>
+
+<button class="soft" onclick="copyMessage()">نسخ البيانات مرة أخرى</button>
+<button class="soft" onclick="newOrder()">طلب جديد</button>
+</div>
+
+<div class="card">
+<h2>العداد</h2>
+<div class="grid">
+<div><label>الرمز التالي</label><input id="counter" type="number" min="1"></div>
+<div style="align-self:end"><button class="soft" onclick="saveCounter()">حفظ</button></div>
+</div>
+<div class="muted">مثال: زهير رمز الموظف 1 → #1-101، عمر 2 → #2-101.</div>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let lastMessage='',lastCode='';
+function latinDigits(s){
+  return String(s||'')
+   .replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+   .replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+}
+function onlyDigits(s){return latinDigits(s).replace(/[^\d]/g,'')}
+function saveSettings(){
+ localStorage.k1_employee=$('employee').value.trim();
+ localStorage.k1_prefix=onlyDigits($('prefix').value).slice(0,2)||'1';
+ if(!localStorage.k1_counter)localStorage.k1_counter='101';
+ loadSettings(); alert('تم الحفظ');
+}
+function loadSettings(){
+ $('employee').value=localStorage.k1_employee||'';
+ $('prefix').value=localStorage.k1_prefix||'1';
+ $('counter').value=localStorage.k1_counter||'101';
+}
+function findLabel(text,labels){
+ for(const lab of labels){
+   const re=new RegExp('(?:^|\\n)\\s*(?:'+lab+')\\s*[:：\\-]?\\s*([^\\n]+)','i');
+   const m=text.match(re); if(m)return m[1].trim();
+ }
+ return '';
+}
+function findNumberAfter(text,labels){
+ for(const lab of labels){
+   const re=new RegExp('(?:'+lab+')\\s*[:：\\-]?\\s*([0-9٠-٩۰-۹]+)','i');
+   const m=text.match(re); if(m)return onlyDigits(m[1]);
+ }
+ return '';
+}
+function parseRaw(){
+ let t=latinDigits($('raw').value.replace(/\r/g,'\n'));
+ let low=t.toLowerCase();
+
+ // Normalize common punctuation/separators while preserving line breaks.
+ let normalized=low
+   .replace(/[،,;|]+/g,' ')
+   .replace(/\s+/g,' ')
+   .trim();
+
+ // ---------- PHONE ----------
+ let phone=onlyDigits(findLabel(t,['(?:رقم\\s*)?(?:التلفون|الهاتف|الجوال|الموبايل|phone|mobile|tel)']));
+ if(!phone){
+   const matches=[...t.matchAll(/(?:\+?965[\s\-]?)?([4569]\d{7})(?!\d)/g)];
+   if(matches.length) phone=matches[matches.length-1][1];
+ }
+ if(!phone){
+   const matches=[...t.matchAll(/(?<!\d)(\d{8,12})(?!\d)/g)];
+   if(matches.length) phone=matches[matches.length-1][1];
+ }
+ $('phone').value=phone;
+
+ // ---------- NAME / NOTE ----------
+ $('name').value=findLabel(t,['الاسم','اسم\\s*العميل','name','customer']);
+ $('note').value=findLabel(t,['ملاحظة','الملاحظة','note','notes']);
+
+ // ---------- EXPLICIT LABELS ----------
+ $('area').value=findLabel(t,['المنطقة','منطقة','area','region']);
+ $('block').value=findNumberAfter(t,['القطعة','قطعة','block','blk']);
+ $('street').value=findNumberAfter(t,['الشارع','شارع','street','st']);
+ $('avenue').value=findNumberAfter(t,['الجادة','جادة','avenue','ave']);
+ $('house').value=findNumberAfter(t,['المنزل','البيت','العمارة','منزل','بيت','عمارة','بناية','house','home','building','bldg']);
+
+ // ---------- ARABIC SHORT FORM ----------
+ // Examples: حطين ق1 ش2 م3   /   حطين ق 1 ش 2 م 3
+ if(!$('block').value){
+   let mm=normalized.match(/(?:^|\s)(?:ق|قطة|قطعه|قطعة)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('block').value=mm[1];
+ }
+ if(!$('street').value){
+   let mm=normalized.match(/(?:^|\s)(?:ش|شارع)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('street').value=mm[1];
+ }
+ if(!$('avenue').value){
+   let mm=normalized.match(/(?:^|\s)(?:ج|جادة)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('avenue').value=mm[1];
+ }
+ if(!$('house').value){
+   let mm=normalized.match(/(?:^|\s)(?:م|منزل|بيت|عمارة|بناية)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('house').value=mm[1];
+ }
+
+ // ---------- ENGLISH SHORT FORM ----------
+ // Examples: Hateen blk 1 st 2 house 3
+ if(!$('block').value){
+   let mm=normalized.match(/(?:^|\s)(?:blk|block)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('block').value=mm[1];
+ }
+ if(!$('street').value){
+   let mm=normalized.match(/(?:^|\s)(?:st|street)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('street').value=mm[1];
+ }
+ if(!$('avenue').value){
+   let mm=normalized.match(/(?:^|\s)(?:ave|avenue)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('avenue').value=mm[1];
+ }
+ if(!$('house').value){
+   let mm=normalized.match(/(?:^|\s)(?:house|home|bldg|building)\s*[:\-]?\s*(\d+)/i);
+   if(mm)$('house').value=mm[1];
+ }
+
+ // ---------- AREA FALLBACK ----------
+ // Take text before the first address marker / phone.
+ if(!$('area').value){
+   let cleaned=normalized
+      .replace(/(?:\+?965[\s-]?)?[4569]\d{7}/g,' ')
+      .replace(/(?<!\d)\d{8,12}(?!\d)/g,' ')
+      .trim();
+
+   let firstMarkerIndex=cleaned.length;
+   const markers=[
+     /\s(?:ق|قطعة|قطعه)\s*\d+/i,
+     /\s(?:ش|شارع)\s*\d+/i,
+     /\s(?:م|منزل|بيت|عمارة|بناية)\s*\d+/i,
+     /\s(?:ج|جادة)\s*\d+/i,
+     /\s(?:blk|block)\s*\d+/i,
+     /\s(?:st|street)\s*\d+/i,
+     /\s(?:ave|avenue)\s*\d+/i,
+     /\s(?:house|home|building|bldg)\s*\d+/i
+   ];
+   for(const rg of markers){
+      const mm=cleaned.match(rg);
+      if(mm && mm.index < firstMarkerIndex) firstMarkerIndex=mm.index;
+   }
+   let areaCandidate=cleaned.slice(0,firstMarkerIndex).trim();
+   areaCandidate=areaCandidate.replace(/^(?:العنوان|عنوان|address|area|region)\s*[:：-]?\s*/i,'').trim();
+
+   // If the first line is useful, prefer it.
+   if(!areaCandidate){
+      const first=t.split('\n').map(x=>x.trim()).filter(Boolean)
+        .find(x=>/[ء-يA-Za-z]/.test(x) && !/\d{7,}/.test(onlyDigits(x)));
+      if(first) areaCandidate=first.split(/(?:قطعة|شارع|جادة|منزل|بيت|عمارة|بناية|blk|block|st|street|ave|avenue|house|home|building|bldg)/i)[0].trim();
+   }
+   if(areaCandidate && areaCandidate.length<=60)$('area').value=areaCandidate;
+ }
+
+ // ---------- CLEAN AREA ----------
+ $('area').value=$('area').value
+   .replace(/^(?:المنطقة|منطقة|area|region)\s*[:：-]?\s*/i,'')
+   .trim();
+
+ // ---------- DETECTION CHIPS ----------
+ const chips=[];
+ if($('phone').value)chips.push('✓ الهاتف');
+ if($('area').value)chips.push('✓ المنطقة');
+ if($('block').value)chips.push('✓ القطعة');
+ if($('street').value)chips.push('✓ الشارع');
+ if($('avenue').value)chips.push('✓ الجادة');
+ if($('house').value)chips.push('✓ المنزل');
+ $('detected').innerHTML=chips.map(x=>'<span class="pill">'+x+'</span>').join('');
+}
+function nextCode(){
+ const prefix=onlyDigits($('prefix').value)||'1';
+ let c=parseInt(localStorage.k1_counter||$('counter').value||'101',10);
+ if(!Number.isFinite(c)||c<1)c=101;
+ lastCode=prefix+'-'+String(c).padStart(3,'0');
+ localStorage.k1_counter=String(c+1); $('counter').value=String(c+1);
+ return lastCode;
+}
+function buildMessage(code){
+ return `[K1ORDER]
+رمز الطلب: ${code}
+الموظف: ${$('employee').value.trim()}
+الاسم: ${$('name').value.trim()}
+الهاتف: ${onlyDigits($('phone').value)}
+المنطقة: ${$('area').value.trim()}
+القطعة: ${$('block').value.trim()}
+الشارع: ${$('street').value.trim()}
+الجادة: ${$('avenue').value.trim()}
+المنزل: ${$('house').value.trim()}
+ملاحظة: ${$('note').value.trim()}
+[/K1ORDER]`;
+}
+function createAndSend(){
+ if(!$('employee').value.trim()||!onlyDigits($('prefix').value)){alert('احفظ اسم الموظف ورمزه أولاً');return}
+ parseRaw();
+ if(!$('area').value.trim() && !onlyDigits($('phone').value)){alert('لم أجد منطقة أو هاتف. راجع البيانات قبل إنشاء الرمز.');return}
+ const code=nextCode(); lastMessage=buildMessage(code);
+ $('orderDisplay').textContent='#'+code; $('done').classList.remove('hidden');
+ $('done').scrollIntoView({behavior:'smooth'});
+ copyMessage(true);
+}
+async function copyMessage(autoCopy=false){
+ if(!lastMessage)return;
+ const msg=autoCopy ? 'تم إنشاء رمز الطلب ونسخ البيانات. اكتب الرمز على الملابس، والبيانات جاهزة للصق.' : 'تم نسخ بيانات الطلب';
+ try{await navigator.clipboard.writeText(lastMessage);alert(msg)}catch(e){
+   const ta=document.createElement('textarea');ta.value=lastMessage;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert(msg);
+ }
+}
+function clearRaw(){$('raw').value='';$('detected').innerHTML=''}
+function newOrder(){
+ ['raw','name','phone','area','block','street','avenue','house','note'].forEach(x=>$(x).value='');
+ $('detected').innerHTML='';$('done').classList.add('hidden');window.scrollTo({top:0,behavior:'smooth'});
+}
+function saveCounter(){
+ let c=parseInt($('counter').value,10);if(!Number.isFinite(c)||c<1){alert('رقم غير صحيح');return}
+ localStorage.k1_counter=String(c);alert('تم حفظ العداد');
+}
+loadSettings();
+</script>
+</body></html>
