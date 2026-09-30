@@ -1,0 +1,10 @@
+name: APK Runner Test
+on:
+  push:
+    branches:
+      - apk-builder-runner-test
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "runner works"
